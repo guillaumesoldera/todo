@@ -119,7 +119,7 @@ function App() {
       <header className="app-header">
         <h1>📝 Todo</h1>
         <p className="app-subtitle">
-          Gérez vos tâches avec la matrice Eisenhower
+          C'est quoi que j'ai à faire !
         </p>
       </header>
 
