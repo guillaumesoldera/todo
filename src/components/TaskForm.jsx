@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import VoiceInput from './VoiceInput';
 import './TaskForm.css';
 
 // Formatte une date pour l'input datetime-local (en heure locale)
@@ -36,6 +37,16 @@ function TaskForm({ onAdd, onClose }) {
     });
   };
 
+  const handleVoiceParsed = (parsedTask) => {
+    setTask(prevTask => ({
+      ...prevTask,
+      title: parsedTask.title || prevTask.title,
+      urgent: parsedTask.urgent,
+      important: parsedTask.important,
+      reminderDate: parsedTask.reminderDate || prevTask.reminderDate,
+    }));
+  };
+
   return (
     <div className="task-form-overlay" onClick={onClose}>
       <div className="task-form-container" onClick={(e) => e.stopPropagation()}>
@@ -46,6 +57,8 @@ function TaskForm({ onAdd, onClose }) {
           </button>
         </div>
         <form onSubmit={handleSubmit} className="task-form">
+          <VoiceInput onTaskParsed={handleVoiceParsed} />
+
           <div className="form-group">
             <label htmlFor="title">Titre *</label>
             <input
