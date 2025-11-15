@@ -3,7 +3,7 @@ import { VoiceRecognition, isSpeechRecognitionSupported } from '../services/spee
 import { parseTaskFromSpeech } from '../services/taskParser';
 import './VoiceInput.css';
 
-function VoiceInput({ onTaskParsed }) {
+function VoiceInput({ onTaskParsed, compact = false }) {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [error, setError] = useState(null);
@@ -65,6 +65,21 @@ function VoiceInput({ onTaskParsed }) {
     return null;
   }
 
+  // Mode compact : juste un petit bouton
+  if (compact) {
+    return (
+      <button
+        type="button"
+        className={`voice-button-compact ${isListening ? 'listening' : ''}`}
+        onClick={handleToggleListen}
+        title={isListening ? 'Arrêter l\'écoute' : 'Saisie vocale'}
+      >
+        {isListening ? '⏹️' : '🎤'}
+      </button>
+    );
+  }
+
+  // Mode normal : avec feedback complet
   return (
     <div className="voice-input">
       <button
