@@ -34,6 +34,7 @@ const TIME_PATTERNS = {
   // Heures
   hour: /(\d{1,2})h(\d{2})?/gi,
   hourAlt: /à\s+(\d{1,2})\s*heures?\s*(\d{2})?/gi,
+  hourPrep: /(à|vers)\s+(\d{1,2})h(\d{2})?/gi,
 
   // Jours relatifs
   today: /aujourd'hui/gi,
@@ -90,28 +91,44 @@ function extractTitle(text) {
     ''
   );
 
-  // Supprimer les indicateurs temporels à la fin
-  title = title.replace(/\s+(aujourd'hui|demain|après[- ]demain).*$/gi, '');
-  title = title.replace(/\s+dans\s+\d+\s+(minutes?|heures?|jours?).*$/gi, '');
-  title = title.replace(/\s+à\s+\d{1,2}h?\d{0,2}.*$/gi, '');
+  // Supprimer les indicateurs temporels (n'importe où dans la phrase)
+  // Heures : "à 14h", "à 14h30", "vers 15h", etc.
+  title = title.replace(/\s+(à|vers)\s+\d{1,2}h\d{0,2}/gi, ' ');
+  title = title.replace(/\s+\d{1,2}h\d{0,2}/gi, ' ');
+
+  // Jours relatifs : "aujourd'hui", "demain", "après-demain"
+  title = title.replace(/\s+(pour|à|vers)?\s+(aujourd'hui|demain|après[- ]demain)/gi, ' ');
+
+  // Durées relatives : "dans 2 heures", "dans 30 minutes"
+  title = title.replace(/\s+dans\s+\d+\s+(minutes?|heures?|jours?)/gi, ' ');
+
+  // Jours de la semaine : "lundi", "pour mardi", etc.
+  title = title.replace(/\s+(pour|à|vers)?\s+(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche)(\s+prochain| suivant)?/gi, ' ');
+
+  // Dates verbales : "le 3 janvier", "pour le 15 mars 2025"
   title = title.replace(
-    /\s+(lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche).*$/gi,
-    ''
-  );
-  title = title.replace(
-    /\s+(?:pour\s+)?le\s+\d{1,2}\s+(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)(?:\s+\d{4})?.*$/gi,
-    ''
+    /\s+(?:pour\s+)?le\s+\d{1,2}\s+(janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre)(?:\s+\d{4})?/gi,
+    ' '
   );
 
   // Supprimer les mots-clés d'urgence/importance
-  title = title.replace(
-    /\s*,?\s*(c'est|très)?\s*(urgent|important|crucial|prioritaire)e?/gi,
-    ''
-  );
-  title = title.replace(/\s*et\s*(urgent|important)e?\s*$/gi, '');
+  // Construction d'une regex avec tous les mots-clés
+  const urgentPattern = URGENT_KEYWORDS.join('|').replace(/\s+/g, '\\s+');
+  const importantPattern = IMPORTANT_KEYWORDS.join('|').replace(/\s+/g, '\\s+');
+  const allKeywords = `(${urgentPattern}|${importantPattern})`;
 
-  // Nettoyer
-  title = title.trim();
+  // Supprimer les mots-clés avec leurs variantes contextuelles
+  title = title.replace(
+    new RegExp(`\\s*,?\\s*(c'est|très|en)?\\s*(${allKeywords})\\s*`, 'gi'),
+    ' '
+  );
+  title = title.replace(
+    new RegExp(`\\s*et\\s*(${allKeywords})\\s*`, 'gi'),
+    ' '
+  );
+
+  // Nettoyer les espaces multiples et trim
+  title = title.replace(/\s+/g, ' ').trim();
 
   // Capitaliser la première lettre
   if (title) {
@@ -142,13 +159,28 @@ function extractDateTime(text) {
 
   // Chercher une heure spécifique
   let hourMatch = TIME_PATTERNS.hour.exec(text);
+  let matchType = 'hour';
+
+  if (!hourMatch) {
+    hourMatch = TIME_PATTERNS.hourPrep.exec(text);
+    matchType = 'hourPrep';
+  }
+
   if (!hourMatch) {
     hourMatch = TIME_PATTERNS.hourAlt.exec(text);
+    matchType = 'hourAlt';
   }
 
   if (hourMatch) {
-    hour = parseInt(hourMatch[1]);
-    minute = hourMatch[2] ? parseInt(hourMatch[2]) : 0;
+    if (matchType === 'hourPrep') {
+      // hourPrep: (à|vers) (\d+)h(\d+)?
+      hour = parseInt(hourMatch[2]);
+      minute = hourMatch[3] ? parseInt(hourMatch[3]) : 0;
+    } else {
+      // hour ou hourAlt: (\d+)h(\d+)?
+      hour = parseInt(hourMatch[1]);
+      minute = hourMatch[2] ? parseInt(hourMatch[2]) : 0;
+    }
   }
 
   // Aujourd'hui
@@ -238,6 +270,17 @@ function extractDateTime(text) {
           targetDate.setFullYear(now.getFullYear() + 1);
         }
       }
+    }
+  }
+
+  // Si on a une heure mais pas de date, utiliser aujourd'hui ou demain
+  if (!targetDate && hour !== null) {
+    targetDate = new Date(now);
+    targetDate.setHours(hour, minute, 0, 0);
+
+    // Si l'heure est déjà passée aujourd'hui, passer à demain
+    if (targetDate < now) {
+      targetDate.setDate(targetDate.getDate() + 1);
     }
   }
 
